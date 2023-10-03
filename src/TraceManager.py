@@ -1,26 +1,18 @@
 ## READ traces
 
-import requests
 import json
-import time;
-import requests 
-import concurrent.futures
-from IPython.display import display, HTML
-from collections import defaultdict
-from scipy import stats
-import pandas as pd
-import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import explained_variance_score
-import random
-from scipy.stats import norm, kurtosis, pearsonr
-from kneed import KneeLocator, DataGenerator as dg
-import random
-from configparser import SafeConfigParser
-from collections import deque 
 import logging
+import os
+import time;
+from collections import deque
+from configparser import SafeConfigParser
+from csv import writer
+
+import networkx as nx
+import numpy as np
+import pandas as pd
+import requests
+
 logger = logging.getLogger(__name__)
 
 class TraceManager():
@@ -35,6 +27,28 @@ class TraceManager():
         self.immediate_parent = {} ## "spanChild" : ["spanParent", "spanParen2"]
 
     ## get traces from API, given service and lookback period
+
+    def append_to_csv(self, resultDir, file_name, list_data):
+
+        CHECK_FOLDER = os.path.isdir(resultDir)
+        # If folder doesn't exist, then create it.
+        if not CHECK_FOLDER:
+            os.makedirs(resultDir)
+            logger.info(str(("created folder : ", resultDir)))
+
+        # The data assigned to the list e.g., list_data=[['03','Smith','Science'], ...]
+        # First, open the old CSV file in append mode, hence mentioned as 'a'
+        # Then, for the CSV file, create a file object
+        with open(resultDir+'/'+file_name, 'a+', newline='') as f_object:
+            # Pass the CSV  file object to the writer() function
+            writer_object = writer(f_object)
+            # Pass the data in the list as an argument into the writerow() function
+            for line in list_data:
+                writer_object.writerow(line)
+            # Close the file object
+            writer_object.writerow([])
+            f_object.close()
+
     def get_traces_jaeger_api(self,service = "compose-post-service"):
         """
         Method for fetching traces from JAEGER API.  
@@ -57,10 +71,10 @@ class TraceManager():
         logger.debug(str(("start: ", start, " end: ",end)))
 
         formatted_endpoint = str(self.JaegerAPIEndpoint.format(end, service, start)).replace('"','')
-        logger.debug(str(("formatted endpiont now: ", formatted_endpoint)))
+        logger.info(str(("formatted endpiont now: ", formatted_endpoint)))
 
         response_batch = requests.get(url = formatted_endpoint)
-
+        logger.info(response_batch)
         data = response_batch.json()
         logger.info(str(("# of traces in this batch: ",len(data["data"]))))
         return data
@@ -142,14 +156,19 @@ class TraceManager():
             e2e_lat = 0
             
             if nx.number_of_nodes(G) != nx.number_of_edges(G) + 1:
-                logger.warning(str(("mertiko problematic trace",traceID)))
+                # logger.warning(str(("mertiko problematic trace",traceID)))
                 dict_traces.pop(traceID)
                 corrupted_traces += 1
                 continue
             
             for x in G.nodes():
                 if not G.nodes[x]:
+                    logger.warning(str(("!!!!!!!! Problem", x)))
+                    logger.warning(str(("!!!!!!!! Problem", traceID)))
+                    continue
                     logger.warning(str(("!!!!!!!! Problem",traceID, 0/0)))
+
+
                     
                 span_now = G.nodes[x]['node'].name   
                 logger.debug(str(("\n---Main span now: ", span_now, " , duration", G.nodes[x]['node'].latency, " id ", G.nodes[x]['node'].id)))
@@ -319,7 +338,7 @@ class TraceManager():
             
         ### final dataframe populated below
         datalar = []
-        pd.set_option("precision", 2)
+        # pd.set_option("precision", 2)
 
         for item in span_stats:
             datalar.append([
@@ -683,7 +702,7 @@ class TraceManager():
             
         ### final dataframe populated below
         datalar = []
-        pd.set_option("precision", 2)
+        # pd.set_option("precision", 2)
 
         for item in span_stats:
 
@@ -832,7 +851,7 @@ def traces_to_df_asplos_experimental_log2(all_traces_data, is_train_ticket = Tru
     df_traces['Max_cum'] = df_traces['Max']/(df_traces['Max'].sum()/100)
 
     return df_traces
-    
+
 
 class Node(object):
     """
@@ -849,7 +868,7 @@ class Node(object):
         self.latency = latency
         self.start = start
         self.end = end
-        
+
 def get_traces_jaeger_file(file_name):
     """
     Method for reading traces from provided file. 

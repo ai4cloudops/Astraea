@@ -7,90 +7,83 @@ At each iteration, via BayesianMethods.py, Astraea adjusts the sampling probabil
 The fraction of spans with low utility decreases over time as the fraction of the most rewarding spans increases.
  At the end of each iteration, span sampling probabilities are issued to the instrumented cloud application through AstraeaOrchestrator.py/.
 """
-
-
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-import json
-from matplotlib.pyplot import figure
-import glob
-import random
 import time
+import boto3
 from IPython.display import display
-from configparser import SafeConfigParser
-import random
-
-
+import AstraeaOrchestrator as ao
 import BayesianMethods as banditalg
 import TraceManager as traceManager
-import AstraeaOrchestrator as ao
-from csv import writer
+from config import load_config
+from logger import setup_logging
 
-
-pd.set_option('display.max_colwidth', None)
-pd.set_option("precision", 1)
-pd.options.display.float_format = '{:.1f}'.format
-sns.set(style='whitegrid', rc={"grid.linewidth": 0.1})
-sns.set_context("paper", font_scale=2.2)                                                  
-color = sns.color_palette("Set2", 2)
-
-
-## Astraea parameters
-reward_field = "Var_sum"
-confidence = 0.95
-
-parser = SafeConfigParser()
-parser.read('../conf/astraea-config.ini')
-period = int(parser.get('application_plane', 'Period'))
-span_states_file_txt = parser.get('application_plane', 'SpanStatesFileTxt')
-
-  
-  
 print("***** Welcome to Astraea!")
-  
+
 # Defining main function
 def main():
-
     print("---- Astraea started!")
-
-    time.sleep(period)
+    config = load_config('../conf/astraea-config.ini')
+    logger = setup_logging()
+    s3 = boto3.client(
+        's3',
+        endpoint_url=config['s3_url'],
+        aws_access_key_id=config['aws_access_key_id'],
+        aws_secret_access_key=config['aws_secret_access_key']
+    )
+    time.sleep(config['period'])
 
     # Astraea framework Initialized
-    bandit = banditalg.ABE("ABE", "Experiment-id1", confidence=confidence, reward_field = reward_field)
-    astraeaOrc = ao.AstraeaOrc()
-    astraeaMan = traceManager.TraceManager()
+    bandit = banditalg.ABE("ABE", "Experiment-id1", confidence=config['confidence'],
+                           reward_field=config['reward_field'])
+    orchestrator = ao.AstraeaOrc(config['app'], config['span_states_file_txt'], s3)
+    trace_manager = traceManager.TraceManager()
 
-    
     ## peridically run and 1) read traces
     epoch = 0
-
-
+    samples_so_far = 0
     while epoch < 100:
         epoch += 1
-        print("\n\n\n\n\n---- runninng epoch: ", epoch)
-
-        all_traces = astraeaMan.get_traces_jaeger_api(service = "compose-post-service")
-        print("collected the batch with len: ", len(all_traces["data"]))
-
-        ## parse traces and extract span units
-        trace_parsed = astraeaMan.traces_to_df_asplos_experimental(all_traces["data"],application_name="SocialNetwork")
-        df_traces = trace_parsed[0]
-
-        display(df_traces.sort_values(by=reward_field, ascending=False))
+        logger.info(str(("---- runninng epoch: ", epoch)))
+        all_traces = trace_manager.get_traces_jaeger_api(service=config['service'])  # "compose-post-service"
+        logger.info(str(("collected the batch with len: ", len(all_traces["data"]))))
+        start_time = time.time()
+        trace_parsed = trace_manager.traces_to_df_with_self(all_traces["data"], application_name=config['app'],
+                                                            all_enabled=False)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        print(f"Elapsed time: {elapsed_time} seconds")
+        df_traces = trace_parsed
+        samples_so_far += len(all_traces["data"])
+        display(df_traces.sort_values(by=config['reward_field'], ascending=False))
 
         ## apply bayesian methods and get new sampling policy
         splits, sorted_spans = bandit.mert_sampling_median_asplos(df_traces, epoch)
-        print("Check new sampling \n", splits)
-        print("Check sorted spans\n",sorted_spans)
+        orchestrator.issue_sampling_policy_txt(splits)
 
-        # astraeaOrc.issue_sampling_policy(splits)
-        astraeaOrc.issue_sampling_policy_txt(splits)
+        logger.info(str(("Finished epoch ", epoch)))
 
-        print("Finished epoch ", epoch)
-        time.sleep(period)
-  
-# __name__
-if __name__=="__main__":
+        ### collect stats
+        ### trace sizes
+        span_counts = []
+        for trace in all_traces["data"]:
+            span_counts.append([len(trace["spans"]), epoch])
+
+        trace_manager.append_to_csv(config['result_dir'], "tracesizes.csv", span_counts)
+
+        logger.info(str((" Astraea Controller with params: epsilon:", (config['epsilon']), "Percentile:",
+                         (config['elim_percentile']))))
+        ### sampling policy
+        sampling_policies = []
+        with open(config['span_states_file_txt']) as samplingPolicy:
+            for line in samplingPolicy:
+                name, var = line.partition(" ")[::2]
+                sampling_policies.append([name.strip(), float(var), epoch, samples_so_far])
+
+        trace_manager.append_to_csv(config['result_dir'],
+                                    "probability.csv", sampling_policies)
+        logger.info("Saved sampling probabilities")
+
+        time.sleep(config['period'])
+
+
+if __name__ == "__main__":
     main()

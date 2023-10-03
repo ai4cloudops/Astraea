@@ -85,7 +85,7 @@ class ABE():
             self.max_reward_queue.appendleft(df_traces[self.reward_field].max())
 
             print("max_reward_queue: ",self.max_reward_queue )
-            max_rew_estimate = [i for i in self.max_reward_queue if i > 0]
+            max_rew_estimate = [i for i in self.max_reward_queue if float(i) > 0]
             print("Max rew estimate ", max_rew_estimate )
             self.max_RMEAN = np.mean(max_rew_estimate)
 
@@ -156,10 +156,10 @@ class ABE():
         
         ## If zero, mean
         if self.elim_percentile == 0:
-            print("Calculating mean")
+            # print("Calculating mean")
             median = np.mean(means)
         else: ## else given percentile!
-            print("Calculating percentile ", self.elim_percentile)
+            # print("Calculating percentile ", self.elim_percentile)
             median = np.percentile(means, self.elim_percentile)
         
         ## sort estimates by value

@@ -29,3 +29,6 @@ store_post_client 100
 write_user_timeline_mongo_insert_client 100
 compose_user_mentions_mongo_find_client 100
 social_graph_mongo_find_client 100
+mean 5000
+sd 1000
+
