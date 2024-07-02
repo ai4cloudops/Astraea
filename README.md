@@ -1,9 +1,9 @@
 # Astraea
-The demo repo of Astraea implementation. 
-
 Astraea is an online distributed tracing system that tackles the trade-off between tracing cost and granularity. It achieves this by utilizing our mathematical formulation that combines online Bayesian learning and multi-armed bandit frameworks. With Astraea, tracing is directed towards the critical instrumentation necessary for performance diagnosis. 
 
 This repository contains guidelines for configuring Astraea with either a Social Network or Train Ticket application. It includes a demonstration of an experiment where a delay is deliberately introduced into the source code of an application. Astraea then adjusts span decisions in a manner that tries to maximize the sampling ratio of the faulty span responsible for capturing the injected delay. The ultimate goal of this process is to enhance the efficiency of tracing.
+
+![Alt text](ad.jpeg)
 
 # Content
 This repo includes /src 
