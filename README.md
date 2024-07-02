@@ -43,6 +43,12 @@ That directory includes probability recordings (corresponding to sampling policy
 
 - A demo case study on Key-value correlation analysis can be found at src/KeyValueCorr.py  <br />
 
+# Authors
+[An Online, Probabilistic Distributed Tracing System](https://arxiv.org/abs/2405.15645)[Accepted at IC2E'2024]
+
+Authors: Mert Toslali (1,2), Syed Mohammad Qasim(1), Srinivasan Parthasarathy(2), Fabio Oliveira(2), Hai Huang(2), Stringhini Gianluca(1), Zaoxing Liu(3) and Ayse Kivilcim Coskun(1)
+
+Affiliations: (1) Boston University (2) IBM (3) University of Maryland.
 
 # License
 <!-- License -->
